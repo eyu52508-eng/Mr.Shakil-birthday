@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Happy Birthday Muhammad Shakil Qureshi!</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- FontAwesome Icons CDN -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
+  <!-- Three.js & OrbitControls CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      user-select: none;
+      -webkit-user-select: none;
+      background-color: #0a0612;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
+  </style>
+</head>
+<body class="relative w-screen h-screen overflow-hidden bg-slate-950">
+
+  <!-- 3D Canvas Container -->
+  <div id="webgl-container" class="w-full h-full cursor-grab active:cursor-grabbing"></div>
+
+  <!-- Top Title Banner -->
+  <div class="absolute top-6 left-0 right-0 pointer-events-none flex flex-col items-center justify-center px-4 z-10">
+    <div id="header-extinguished" class="hidden animate-bounce text-center">
+      <h1 class="text-3xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-pink-400 via-yellow-300 to-purple-300 drop-shadow-[0_5px_15px_rgba(255,105,180,0.6)]">
+        🎉 Happy Birthday, Muhammad Shakil Qureshi! 🎂
+      </h1>
+      <p class="text-pink-200 text-sm md:text-lg mt-2 font-medium tracking-wide">
+        May all your wishes and dreams come true!
+      </p>
+    </div>
+
+    <div id="header-waiting" class="text-center bg-black/40 backdrop-blur-md px-6 py-3 rounded-full border border-white/10 shadow-2xl">
+      <h1 class="text-lg md:text-2xl font-bold text-white tracking-wide flex items-center justify-center gap-2">
+        <i class="fa-solid fa-cake-candles text-pink-400"></i> Make a wish, Muhammad Shakil Qureshi!
+      </h1>
+    </div>
+  </div>
+
+  <!-- Bottom Floating Control Panel -->
+  <div class="absolute bottom-8 left-1/2 -translate-x-1/2 w-11/12 max-w-xl bg-slate-900/85 backdrop-blur-2xl border border-white/15 p-4 md:p-5 rounded-3xl shadow-2xl flex flex-col gap-4 z-10">
+    
+    <!-- Action Buttons -->
+    <div class="flex items-center justify-center gap-3">
+      <button
+        id="btn-blow-reset"
+        onclick="handlePrimaryAction()"
+        class="flex-1 py-3.5 px-6 rounded-2xl bg-gradient-to-r from-pink-500 via-rose-500 to-amber-500 hover:from-pink-600 hover:to-amber-600 text-white font-bold text-base md:text-lg shadow-lg shadow-pink-500/30 active:scale-95 transition-all flex items-center justify-center gap-2 border border-white/20"
+      >
+        <i id="btn-icon" class="fa-solid fa-wind animate-pulse"></i>
+        <span id="btn-label">Blow Candles</span>
+      </button>
+
+      <!-- Microphone Button -->
+      <button
+        id="btn-mic"
+        onclick="toggleMicrophone()"
+        title="Toggle Microphone Blow Detection"
+        class="p-3.5 rounded-2xl border transition-all flex items-center justify-center bg-white/5 border-white/10 text-gray-300 hover:bg-white/10"
+      >
+        <i id="mic-icon" class="fa-solid fa-microphone-slash text-xl"></i>
+      </button>
+    </div>
+
+    <!-- Microphone Meter Bar -->
+    <div id="mic-meter-container" class="hidden w-full flex items-center gap-3 bg-black/40 px-4 py-2 rounded-xl border border-white/5">
+      <span class="text-xs text-red-400 font-mono font-medium flex items-center gap-1.5 whitespace-nowrap">
+        <span class="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
+        Blow into your mic
+      </span>
+      <div class="flex-1 bg-gray-800 h-2 rounded-full overflow-hidden">
+        <div id="mic-meter-bar" class="bg-gradient-to-r from-green-400 via-yellow-400 to-red-500 h-full w-0 transition-all duration-75"></div>
+      </div>
+    </div>
+
+    <!-- Camera Presets -->
+    <div class="flex items-center justify-between pt-2 border-t border-white/10 text-xs text-gray-400">
+      <span class="flex items-center gap-1.5 font-medium text-gray-300">
+        <i class="fa-solid fa-camera text-pink-400"></i> View Angle:
+      </span>
+      <div class="flex items-center gap-1.5">
+        <button id="cam-btn-default" onclick="setCameraPreset('default')" class="px-3 py-1.5 rounded-xl border transition bg-pink-500/20 border-pink-500 text-pink-300 font-semibold">Front</button>
+        <button id="cam-btn-close" onclick="setCameraPreset('close')" class="px-3 py-1.5 rounded-xl border transition bg-white/5 border-white/10 text-gray-400 hover:bg-white/10">Close-up</button>
+        <button id="cam-btn-top" onclick="setCameraPreset('top')" class="px-3 py-1.5 rounded-xl border transition bg-white/5 border-white/10 text-gray-400 hover:bg-white/10">Top Down</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    class SoundEffects {
+      constructor() {
+        this.ctx = null;
+      }
+
+      init() {
+        if (!this.ctx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          this.ctx = new AudioCtx();
+        }
+        if (this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+
+      playBlowSound(duration = 1.6) {
+        this.init();
+        if (!this.ctx) return;
+
+        const bufferSize = this.ctx.sampleRate * duration;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+
+        let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+        for (let i = 0; i < bufferSize; i++) {
+          const white = Math.random() * 2 - 1;
+          b0 = 0.99886 * b0 + white * 0.0555179;
+          b1 = 0.99332 * b1 + white * 0.0750759;
+          b2 = 0.96900 * b2 + white * 0.1538520;
+          b3 = 0.86650 * b3 + white * 0.3104856;
+          b4 = 0.55000 * b4 + white * 0.5329522;
+          b5 = -0.7616 * b5 - white * 0.0168980;
+          data[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.12;
+          b6 = white * 0.115926;
+        }
+
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(450, this.ctx.currentTime);
+        filter.frequency.exponentialRampToValueAtTime(120, this.ctx.currentTime + duration);
+
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.01, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.5, this.ctx.currentTime + 0.2);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        noise.start();
+      }
+
+      playCelebrateSound() {
+        this.init();
+        if (!this.ctx) return;
+
+        const notes = [523.25, 659.25, 783.99, 1046.50, 1318.51, 1567.98];
+        notes.forEach((freq, index) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, this.ctx.currentTime + index * 0.09);
+
+          gain.gain.setValueAtTime(0, this.ctx.currentTime + index * 0.09);
+          gain.gain.linearRampToValueAtTime(0.18, this.ctx.currentTime + index * 0.09 + 0.04);
+          gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + index * 0.09 + 1.2);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+
+          osc.start(this.ctx.currentTime + index * 0.09);
+          osc.stop(this.ctx.currentTime + index * 0.09 + 1.3);
+        });
+      }
+    }
+
+    const sfx = new SoundEffects();
+
+    let appState = 'WAITING'; // 'WAITING' | 'BLOWING' | 'EXTINGUISHED'
+    let cameraPreset = 'default';
+    let candleFlames = [];
+    let candleLights = [];
+    let smokeSystems = [];
+    let confettiItems = [];
+
+    let isMicActive = false;
+    let micStream = null;
+    let audioCtx = null;
+    let analyser = null;
+    let animFrameId = null;
+
+    let scene, camera, renderer, controls;
+
+    function init3D() {
+      const container = document.getElementById('webgl-container');
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+
+      // Scene
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color('#0a0612');
+      scene.fog = new THREE.FogExp2('#0a0612', 0.08);
+
+      // Camera
+      camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 50);
+      camera.position.set(0, 1.8, 4.2);
+
+      // Renderer
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setSize(width, height);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.15;
+      container.appendChild(renderer.domElement);
+
+      // Orbit Controls
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      controls.enablePan = false;
+      controls.minDistance = 1.5;
+      controls.maxDistance = 7;
+      controls.maxPolarAngle = Math.PI / 2 + 0.02;
+      controls.target.set(0, 0.2, 0);
+
+      // Lighting
+      const ambientLight = new THREE.AmbientLight('#fff2e6', 0.65);
+      scene.add(ambientLight);
+
+      const dirLight = new THREE.DirectionalLight('#fff5ea', 1.2);
+      dirLight.position.set(4, 6, 3);
+      dirLight.castShadow = true;
+      dirLight.shadow.mapSize.width = 1024;
+      dirLight.shadow.mapSize.height = 1024;
+      dirLight.shadow.bias = -0.0005;
+      scene.add(dirLight);
+
+      const fillLight = new THREE.DirectionalLight('#a0c4ff', 0.4);
+      fillLight.position.set(-4, 3, -3);
+      scene.add(fillLight);
+
+      // Cake Group
+      const cakeGroup = new THREE.Group();
+      cakeGroup.position.set(0, -0.4, 0);
+      scene.add(cakeGroup);
+
+      // Stand Base
+      const standMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.1, metalness: 0.1 });
+      const standPlate = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.7, 0.12, 64), standMat);
+      standPlate.position.set(0, -0.1, 0);
+      standPlate.receiveShadow = true;
+      standPlate.castShadow = true;
+      cakeGroup.add(standPlate);
+
+      const standStem = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.7, 0.2, 32), standMat);
+      standStem.position.set(0, -0.25, 0);
+      standStem.receiveShadow = true;
+      cakeGroup.add(standStem);
+
+      // Cake Tier 1
+      const cakeTier1Mat = new THREE.MeshStandardMaterial({ color: 0xfff0f5, roughness: 0.3 });
+      const cakeTier1 = new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.3, 0.4, 64), cakeTier1Mat);
+      cakeTier1.position.set(0, 0.15, 0);
+      cakeTier1.castShadow = true;
+      cakeTier1.receiveShadow = true;
+      cakeGroup.add(cakeTier1);
+
+      // Frosting Band
+      const frostingMat = new THREE.MeshStandardMaterial({ color: 0xffb6c1, roughness: 0.35 });
+      const frostingBand = new THREE.Mesh(new THREE.CylinderGeometry(1.32, 1.32, 0.08, 64), frostingMat);
+      frostingBand.position.set(0, 0.05, 0);
+      cakeGroup.add(frostingBand);
+
+      // Cake Tier 2
+      const cakeTier2Mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.25 });
+      const cakeTier2 = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 0.4, 64), cakeTier2Mat);
+      cakeTier2.position.set(0, 0.55, 0);
+      cakeTier2.castShadow = true;
+      cakeTier2.receiveShadow = true;
+      cakeGroup.add(cakeTier2);
+
+      // Frosting Piping
+      const pipingMat = new THREE.MeshStandardMaterial({ color: 0xffc0cb, roughness: 0.2 });
+      for (let i = 0; i < 24; i++) {
+        const angle = (i / 24) * Math.PI * 2;
+        const x = Math.cos(angle) * 0.81;
+        const z = Math.sin(angle) * 0.81;
+        const piping = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 12), pipingMat);
+        piping.position.set(x, 0.35, z);
+        cakeGroup.add(piping);
+      }
+
+      // Cream & Strawberries
+      const creamMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 });
+      const strawberryMat = new THREE.MeshStandardMaterial({ color: 0xe60033, roughness: 0.3 });
+
+      for (let i = 0; i < 16; i++) {
+        const angle = (i / 16) * Math.PI * 2;
+        const x = Math.cos(angle) * 0.75;
+        const z = Math.sin(angle) * 0.75;
+
+        const cream = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 12), creamMat);
+        cream.position.set(x, 0.76, z);
+        cakeGroup.add(cream);
+
+        if (i % 2 === 0) {
+          const strawberry = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.09, 12), strawberryMat);
+          strawberry.position.set(x, 0.82, z);
+          strawberry.rotation.x = 0.2;
+          cakeGroup.add(strawberry);
+        }
+      }
+
+      // Sprinkles
+      const sprinkleColors = [0xff4081, 0xffeb3b, 0x00e676, 0x00e5ff, 0xaa00ff, 0xff9100];
+      const sprinkleGeo = new THREE.BoxGeometry(0.015, 0.015, 0.04);
+      for (let i = 0; i < 90; i++) {
+        const radius = 0.2 + Math.random() * 1.05;
+        const angle = Math.random() * Math.PI * 2;
+        const x = Math.cos(angle) * radius;
+        const z = Math.sin(angle) * radius;
+        const y = radius > 0.75 ? 0.405 : 0.805;
+
+        const mat = new THREE.MeshStandardMaterial({
+          color: sprinkleColors[Math.floor(Math.random() * sprinkleColors.length)],
+          roughness: 0.3
+        });
+        const sprinkle = new THREE.Mesh(sprinkleGeo, mat);
+        sprinkle.position.set(x, y, z);
+        sprinkle.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+        cakeGroup.add(sprinkle);
+      }
+
+      const plaqueCanvas = document.createElement('canvas');
+      plaqueCanvas.width = 512;
+      plaqueCanvas.height = 256;
+      const plaqueCtx = plaqueCanvas.getContext('2d');
+      
+      plaqueCtx.fillStyle = '#231206';
+      plaqueCtx.fillRect(0, 0, 512, 256);
+      
+      plaqueCtx.strokeStyle = '#f59e0b';
+      plaqueCtx.lineWidth = 10;
+      plaqueCtx.strokeRect(12, 12, 488, 232);
+      plaqueCtx.strokeStyle = '#fef08a';
+      plaqueCtx.lineWidth = 3;
+      plaqueCtx.strokeRect(20, 20, 472, 216);
+
+      plaqueCtx.fillStyle = '#fbbf24';
+      plaqueCtx.font = 'bold 32px Georgia, serif';
+      plaqueCtx.textAlign = 'center';
+      plaqueCtx.fillText('Happy Birthday', 256, 70);
+
+      plaqueCtx.fillStyle = '#ffffff';
+      plaqueCtx.font = 'bold 35px Arial, sans-serif';
+      plaqueCtx.fillText('Muhammad Shakil', 256, 130);
+      
+      plaqueCtx.fillStyle = '#f472b6';
+      plaqueCtx.font = 'bold 36px Arial, sans-serif';
+      plaqueCtx.fillText('Qureshi', 256, 188);
+
+      const plaqueTexture = new THREE.CanvasTexture(plaqueCanvas);
+      const plaqueMat = new THREE.MeshStandardMaterial({ map: plaqueTexture, roughness: 0.25 });
+      const plaqueGeo = new THREE.BoxGeometry(0.88, 0.44, 0.04);
+      const plaqueMesh = new THREE.Mesh(plaqueGeo, plaqueMat);
+      plaqueMesh.position.set(0, 0.35, 1.02);
+      plaqueMesh.rotation.x = -0.12;
+      plaqueMesh.castShadow = true;
+      cakeGroup.add(plaqueMesh);
+
+      // Candles Setup
+      const candlePositions = [
+        [0, 0.75, 0],
+        [-0.35, 0.75, 0.1],
+        [0.35, 0.75, -0.1],
+        [0.1, 0.75, 0.35],
+        [-0.15, 0.75, -0.35]
+      ];
+
+      const waxMat = new THREE.MeshStandardMaterial({ color: 0xfff5ea, roughness: 0.3, metalness: 0.05 });
+      const stripeMat = new THREE.MeshStandardMaterial({ color: 0xff9ebb, roughness: 0.4 });
+      const wickMat = new THREE.MeshStandardMaterial({ color: 0x442211 });
+
+      candlePositions.forEach((pos) => {
+        const candleGroup = new THREE.Group();
+        candleGroup.position.set(pos[0], pos[1], pos[2]);
+
+        const wax = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.3, 16), waxMat);
+        wax.position.y = 0.15;
+        wax.castShadow = true;
+        wax.receiveShadow = true;
+        candleGroup.add(wax);
+
+        const stripe = new THREE.Mesh(new THREE.CylinderGeometry(0.061, 0.061, 0.1, 16), stripeMat);
+        stripe.position.y = 0.15;
+        candleGroup.add(stripe);
+
+        const wick = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.05, 8), wickMat);
+        wick.position.y = 0.31;
+        candleGroup.add(wick);
+
+        // Flame mesh
+        const flameGroup = new THREE.Group();
+        flameGroup.position.set(0, 0.35, 0);
+
+        const flameOuterGeo = new THREE.ConeGeometry(0.07, 0.24, 16);
+        const flameOuterMat = new THREE.MeshStandardMaterial({
+          color: 0xff7700,
+          emissive: 0xff3300,
+          emissiveIntensity: 3,
+          roughness: 0.1,
+          toneMapped: false
+        });
+        const flameOuter = new THREE.Mesh(flameOuterGeo, flameOuterMat);
+        flameOuter.position.y = 0.12;
+        flameGroup.add(flameOuter);
+
+        const flameInnerGeo = new THREE.ConeGeometry(0.03, 0.15, 16);
+        const flameInnerMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const flameInner = new THREE.Mesh(flameInnerGeo, flameInnerMat);
+        flameInner.position.y = 0.08;
+        flameGroup.add(flameInner);
+
+        candleGroup.add(flameGroup);
+        candleFlames.push(flameGroup);
+
+        const pLight = new THREE.PointLight(0xffaa33, 2.8, 3.5, 2);
+        pLight.position.set(0, 0.45, 0);
+        pLight.castShadow = true;
+        pLight.shadow.mapSize.width = 256;
+        pLight.shadow.mapSize.height = 256;
+        candleGroup.add(pLight);
+        candleLights.push(pLight);
+
+        // Smoke particles per candle
+        const smokeCount = 18;
+        const smokeGeo = new THREE.BufferGeometry();
+        const smokePositions = new Float32Array(smokeCount * 3);
+        const smokeSizes = new Float32Array(smokeCount);
+
+        const smokeData = [];
+        for (let i = 0; i < smokeCount; i++) {
+          smokePositions[i * 3] = (Math.random() - 0.5) * 0.05;
+          smokePositions[i * 3 + 1] = 0.35 + Math.random() * 0.2;
+          smokePositions[i * 3 + 2] = (Math.random() - 0.5) * 0.05;
+          smokeSizes[i] = 0.05 + Math.random() * 0.08;
+
+          smokeData.push({
+            x: smokePositions[i * 3],
+            y: smokePositions[i * 3 + 1],
+            z: smokePositions[i * 3 + 2],
+            size: smokeSizes[i],
+            life: Math.random(),
+            speed: 0.2 + Math.random() * 0.3
+          });
+        }
+
+        smokeGeo.setAttribute('position', new THREE.BufferAttribute(smokePositions, 3));
+
+        const smokeMat = new THREE.PointsMaterial({
+          color: 0xcccccc,
+          size: 0.08,
+          transparent: true,
+          opacity: 0,
+          depthWrite: false,
+          blending: THREE.NormalBlending
+        });
+
+        const smokePoints = new THREE.Points(smokeGeo, smokeMat);
+        candleGroup.add(smokePoints);
+
+        smokeSystems.push({
+          points: smokePoints,
+          data: smokeData,
+          positions: smokePositions,
+          material: smokeMat
+        });
+
+        cakeGroup.add(candleGroup);
+      });
+
+      const confettiCount = 140;
+      const confettiGroup = new THREE.Group();
+      const confettiColors = [0xff0055, 0xffcc00, 0x00ccff, 0xff6600, 0x00ff66, 0xcc00ff];
+      const confettiGeo = new THREE.BoxGeometry(0.04, 0.04, 0.005);
+
+      for (let i = 0; i < confettiCount; i++) {
+        const mat = new THREE.MeshStandardMaterial({
+          color: confettiColors[Math.floor(Math.random() * confettiColors.length)],
+          roughness: 0.3,
+          metalness: 0.2,
+          side: THREE.DoubleSide
+        });
+        const mesh = new THREE.Mesh(confettiGeo, mat);
+        const pos = new THREE.Vector3((Math.random() - 0.5) * 3.5, 2 + Math.random() * 2, (Math.random() - 0.5) * 3.5);
+        mesh.position.copy(pos);
+        mesh.visible = false;
+        confettiGroup.add(mesh);
+
+        confettiItems.push({
+          mesh,
+          pos,
+          rotSpeed: new THREE.Vector3(Math.random() * 6, Math.random() * 6, Math.random() * 6),
+          vel: new THREE.Vector3((Math.random() - 0.5) * 0.8, -0.8 - Math.random() * 1.2, (Math.random() - 0.5) * 0.8)
+        });
+      }
+      scene.add(confettiGroup);
+
+      // Ambient Sparkles
+      const sparkleCount = 60;
+      const sparkleGeo = new THREE.BufferGeometry();
+      const sparklePositions = new Float32Array(sparkleCount * 3);
+      for (let i = 0; i < sparkleCount * 3; i += 3) {
+        sparklePositions[i] = (Math.random() - 0.5) * 6;
+        sparklePositions[i + 1] = Math.random() * 4;
+        sparklePositions[i + 2] = (Math.random() - 0.5) * 6;
+      }
+      sparkleGeo.setAttribute('position', new THREE.BufferAttribute(sparklePositions, 3));
+      const sparkleMat = new THREE.PointsMaterial({ color: 0xffea9f, size: 0.04, transparent: true, opacity: 0.7 });
+      const sparklePoints = new THREE.Points(sparkleGeo, sparkleMat);
+      scene.add(sparklePoints);
+
+      // Animation Loop
+      const clock = new THREE.Clock();
+
+      function animate() {
+        requestAnimationFrame(animate);
+
+        const delta = clock.getDelta();
+        const elapsedTime = clock.getElapsedTime();
+
+        if (appState === 'WAITING') {
+          controls.autoRotate = true;
+          controls.autoRotateSpeed = 0.8;
+        } else {
+          controls.autoRotate = false;
+        }
+
+        // Flame Animation
+        candleFlames.forEach((flame, index) => {
+          const light = candleLights[index];
+
+          if (appState === 'WAITING') {
+            flame.scale.set(1, 1, 1);
+            flame.visible = true;
+
+            const flicker = Math.sin(elapsedTime * 4 + index) * 0.08 + Math.cos(elapsedTime * 9 + index) * 0.05;
+            flame.scale.x = 1 + flicker;
+            flame.scale.y = 1 + flicker * 1.2;
+            flame.scale.z = 1 + flicker;
+
+            flame.rotation.z = Math.sin(elapsedTime * 3 + index) * 0.08;
+            flame.rotation.x = Math.cos(elapsedTime * 2.5 + index) * 0.08;
+
+            if (light) light.intensity = 2.5 + flicker * 1.5;
+          } else if (appState === 'BLOWING') {
+            flame.scale.x = Math.max(0, flame.scale.x - delta * 2.5);
+            flame.scale.y = Math.max(0, flame.scale.y - delta * 2.5);
+            flame.scale.z = Math.max(0, flame.scale.z - delta * 2.5);
+            flame.rotation.z += delta * 15;
+
+            if (light) light.intensity = Math.max(0, light.intensity - delta * 8);
+          } else if (appState === 'EXTINGUISHED') {
+            flame.scale.set(0, 0, 0);
+            flame.visible = false;
+            if (light) light.intensity = 0;
+          }
+        });
+
+        // Smoke Particle Animation
+        smokeSystems.forEach((system) => {
+          if (appState === 'EXTINGUISHED') {
+            system.material.opacity = 0.45;
+            const posAttr = system.points.geometry.attributes.position;
+
+            system.data.forEach((p, i) => {
+              p.y += delta * p.speed;
+              p.x += Math.sin(elapsedTime * 3 + i) * delta * 0.08;
+
+              if (p.y > 0.8) {
+                p.y = 0.35;
+                p.x = (Math.random() - 0.5) * 0.05;
+              }
+
+              posAttr.setXYZ(i, p.x, p.y, p.z);
+            });
+            posAttr.needsUpdate = true;
+          } else {
+            system.material.opacity = 0;
+          }
+        });
+
+        // Confetti physics animation
+        confettiItems.forEach((c) => {
+          if (appState === 'EXTINGUISHED') {
+            c.mesh.visible = true;
+            c.pos.x += c.vel.x * delta;
+            c.pos.y += c.vel.y * delta;
+            c.pos.z += c.vel.z * delta;
+
+            c.mesh.rotation.x += c.rotSpeed.x * delta;
+            c.mesh.rotation.y += c.rotSpeed.y * delta;
+
+            if (c.pos.y < -1) {
+              c.pos.set((Math.random() - 0.5) * 3.5, 2.5 + Math.random() * 1.5, (Math.random() - 0.5) * 3.5);
+            }
+            c.mesh.position.copy(c.pos);
+          } else {
+            c.mesh.visible = false;
+          }
+        });
+
+        // Camera Lerp
+        let targetPos = [0, 1.8, 4.2];
+        if (cameraPreset === 'top') targetPos = [0, 3.8, 0.1];
+        if (cameraPreset === 'close') targetPos = [0, 0.9, 1.8];
+
+        camera.position.x += (targetPos[0] - camera.position.x) * delta * 2.5;
+        camera.position.y += (targetPos[1] - camera.position.y) * delta * 2.5;
+        camera.position.z += (targetPos[2] - camera.position.z) * delta * 2.5;
+
+        controls.update();
+        renderer.render(scene, camera);
+      }
+
+      animate();
+
+      window.addEventListener('resize', () => {
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+        renderer.setSize(w, h);
+      });
+    }
+
+    function handlePrimaryAction() {
+      if (appState === 'WAITING') {
+        appState = 'BLOWING';
+        sfx.playBlowSound(1.5);
+        updateUI();
+
+        setTimeout(() => {
+          appState = 'EXTINGUISHED';
+          sfx.playCelebrateSound();
+          updateUI();
+        }, 1100);
+      } else if (appState === 'EXTINGUISHED') {
+        appState = 'WAITING';
+        updateUI();
+      }
+    }
+
+    function updateUI() {
+      const headerWaiting = document.getElementById('header-waiting');
+      const headerExtinguished = document.getElementById('header-extinguished');
+      const btn = document.getElementById('btn-blow-reset');
+      const btnIcon = document.getElementById('btn-icon');
+      const btnLabel = document.getElementById('btn-label');
+
+      if (appState === 'WAITING') {
+        headerWaiting.classList.remove('hidden');
+        headerExtinguished.classList.add('hidden');
+
+        btn.className = "flex-1 py-3.5 px-6 rounded-2xl bg-gradient-to-r from-pink-500 via-rose-500 to-amber-500 hover:from-pink-600 hover:to-amber-600 text-white font-bold text-base md:text-lg shadow-lg shadow-pink-500/30 active:scale-95 transition-all flex items-center justify-center gap-2 border border-white/20";
+        btnIcon.className = "fa-solid fa-wind animate-pulse";
+        btnLabel.innerText = "Blow Candles";
+        btn.disabled = false;
+      } else if (appState === 'BLOWING') {
+        btnIcon.className = "fa-solid fa-spinner animate-spin";
+        btnLabel.innerText = "Blowing Candles...";
+        btn.disabled = true;
+      } else if (appState === 'EXTINGUISHED') {
+        headerWaiting.classList.add('hidden');
+        headerExtinguished.classList.remove('hidden');
+
+        btn.className = "flex-1 py-3.5 px-6 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold text-base md:text-lg shadow-lg shadow-teal-500/30 active:scale-95 transition-all flex items-center justify-center gap-2 border border-white/20";
+        btnIcon.className = "fa-solid fa-rotate-left";
+        btnLabel.innerText = "Re-light Candles";
+        btn.disabled = false;
+      }
+    }
+
+    function setCameraPreset(preset) {
+      cameraPreset = preset;
+
+      const btns = {
+        default: document.getElementById('cam-btn-default'),
+        close: document.getElementById('cam-btn-close'),
+        top: document.getElementById('cam-btn-top')
+      };
+
+      Object.keys(btns).forEach(key => {
+        if (key === preset) {
+          btns[key].className = "px-3 py-1.5 rounded-xl border transition bg-pink-500/20 border-pink-500 text-pink-300 font-semibold";
+        } else {
+          btns[key].className = "px-3 py-1.5 rounded-xl border transition bg-white/5 border-white/10 text-gray-400 hover:bg-white/10";
+        }
+      });
+    }
+
+    async function toggleMicrophone() {
+      const micBtn = document.getElementById('btn-mic');
+      const micIcon = document.getElementById('mic-icon');
+      const meterContainer = document.getElementById('mic-meter-container');
+
+      if (isMicActive) {
+        stopMic();
+      } else {
+        try {
+          micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          audioCtx = new AudioContext();
+          analyser = audioCtx.createAnalyser();
+          analyser.fftSize = 256;
+
+          const source = audioCtx.createMediaStreamSource(micStream);
+          source.connect(analyser);
+
+          isMicActive = true;
+          micBtn.className = "p-3.5 rounded-2xl border transition-all flex items-center justify-center bg-red-500/20 border-red-500 text-red-400 animate-pulse";
+          micIcon.className = "fa-solid fa-microphone text-xl";
+          meterContainer.classList.remove('hidden');
+
+          detectMicBlow();
+        } catch (err) {
+          console.error("Microphone access error:", err);
+        }
+      }
+    }
+
+    function stopMic() {
+      if (animFrameId) cancelAnimationFrame(animFrameId);
+      if (micStream) {
+        micStream.getTracks().forEach(track => track.stop());
+      }
+      if (audioCtx) {
+        audioCtx.close();
+      }
+      isMicActive = false;
+
+      const micBtn = document.getElementById('btn-mic');
+      const micIcon = document.getElementById('mic-icon');
+      const meterContainer = document.getElementById('mic-meter-container');
+
+      micBtn.className = "p-3.5 rounded-2xl border transition-all flex items-center justify-center bg-white/5 border-white/10 text-gray-300 hover:bg-white/10";
+      micIcon.className = "fa-solid fa-microphone-slash text-xl";
+      meterContainer.classList.add('hidden');
+    }
+
+    function detectMicBlow() {
+      if (!analyser) return;
+
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      analyser.getByteFrequencyData(dataArray);
+
+      let sum = 0;
+      for (let i = 0; i < 15; i++) {
+        sum += dataArray[i];
+      }
+      const average = sum / 15;
+
+      const meterBar = document.getElementById('mic-meter-bar');
+      if (meterBar) {
+        meterBar.style.width = `${Math.min(100, (average / 80) * 100)}%`;
+      }
+
+      if (average > 65 && appState === 'WAITING') {
+        handlePrimaryAction();
+        stopMic();
+        return;
+      }
+
+      animFrameId = requestAnimationFrame(detectMicBlow);
+    }
+
+    window.onload = function () {
+      init3D();
+    };
+  </script>
+</body>
+</html>
